@@ -1,0 +1,132 @@
+<?xml version="1.0" encoding="utf-8"?>
+<s:Application
+  xmlns:s="library://ns.adobe.com/flex/spark"
+  xmlns:mx="library://ns.adobe.com/flex/mx"
+  xmlns:fx="http://ns.adobe.com/mxml/2009"
+  width="760" height="560"
+  creationComplete="init()"
+  backgroundColor="0x404060"
+  frameRate="30"
+>
+<fx:Script>
+<![CDATA[
+  import alternativa.engine3d.core.Camera3D;
+  import alternativa.engine3d.core.Object3D;
+  import alternativa.engine3d.core.Resource;
+  import alternativa.engine3d.resources.BitmapTextureResource;
+  import alternativa.engine3d.core.View;
+  import alternativa.engine3d.core.Debug;
+  import alternativa.engine3d.materials.*;
+  import alternativa.engine3d.primitives.*;
+  import alternativa.engine3d.lights.OmniLight;
+  import caurina.transitions.*;
+ 
+  import flash.display.Sprite;
+  import flash.display.Stage3D;
+  import flash.events.Event;
+  import flash.utils.Timer;
+
+  import mx.core.FlexGlobals;
+  import mx.core.UIComponent;
+  import net.hires.utils.Stats;
+
+  private var _rootContainer:Object3D = new Object3D();
+  private var _camera:Camera3D;
+  private var _stage3D:Stage3D;
+
+  private var _sphere:GeoSphere;
+  private var _plane:Plane;
+  private var _omniLight:OmniLight = new OmniLight(0xFF0000, 100,1000);
+  private var _balls:Array = [];
+
+  private function init():void{
+  }
+
+  private function keyHandler(event:KeyboardEvent):void {
+    switch(event.keyCode){
+      case 74: //j
+        _camera.rotationX += Math.PI / 16;
+        break;
+      case 75: //k
+        _camera.rotationX -= Math.PI / 16;
+        break;
+    }
+  }
+
+  private var statsUI:UIComponent = new UIComponent;
+  private function showStatsForDebug():void {
+      statsUI.addChild(new Stats());
+      statsUI.y = 380;
+      addElement(statsUI);
+  }
+
+  private function prepareView():void{
+    showStatsForDebug();
+    stage.addEventListener(KeyboardEvent.KEY_DOWN, keyHandler); 
+    _camera = new Camera3D(0.1, 10000);
+    _camera.view = new View(760, 560);
+    _camera.view.renderToBitmap = true;
+    _camera.view.hideLogo();
+    _camera.view.backgroundColor = 0xFFFFFF;
+    _camera.view.backgroundAlpha = 0;
+    _camera.rotationX = Math.PI * 1.5;
+    _camera.y = -2000;
+    _camera.z = 100;
+    baseSprite.addChild(_camera.view);
+    _rootContainer.addChild(_camera);
+      
+    var bitmapData:BitmapData = new BitmapData(32,32,true,0xFFFFFFFF);
+    var texture:BitmapTextureResource = new BitmapTextureResource(bitmapData);
+    var material:VertexLightTextureMaterial = new VertexLightTextureMaterial(texture);
+
+    for(var i:int=0;i<100;i++){
+      var geoSphere:GeoSphere = new GeoSphere(30,10);
+      geoSphere.setMaterialToAllSurfaces(material);
+      _rootContainer.addChild(geoSphere);
+      var ball:Ball = new Ball(geoSphere);
+      _balls.push(ball);
+    }
+
+    _omniLight.intensity = 3;
+    _omniLight.z = 200;
+    _rootContainer.addChild(_omniLight);
+
+    _stage3D = stage.stage3Ds[0];
+    _stage3D.addEventListener(Event.CONTEXT3D_CREATE, onContextCreate);
+    _stage3D.requestContext3D(); 
+  }
+
+  private function onContextCreate(e:Event):void {
+    for each(var resource:Resource in _rootContainer.getResources(true)){
+      resource.upload(_stage3D.context3D);
+    }
+    stage.addEventListener(Event.ENTER_FRAME, onEnterFrame);
+  }
+
+  private function onEnterFrame(e:Event):void {
+    _camera.render(_stage3D);
+    for each(var ball:Ball in _balls){
+      if(ball.isOutOfSight()){
+        ball.reset();
+      } else {
+        ball.update();
+      }
+    }
+  }
+
+  private function dispose():void{
+    for each (var resource:Resource in _rootContainer.getResources(true)){
+      resource.dispose();
+    }
+    _camera.render(_stage3D);
+    stage.removeEventListener(Event.ENTER_FRAME, onEnterFrame);
+    _stage3D.removeEventListener(Event.CONTEXT3D_CREATE, onContextCreate);
+  }
+
+]]>
+</fx:Script>
+
+<s:SpriteVisualElement id="baseSprite" width="100%" height="100%" addedToStage="prepareView()"/>
+
+</s:Application>
+
