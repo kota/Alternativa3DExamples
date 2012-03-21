@@ -13,12 +13,15 @@
   import alternativa.engine3d.core.Camera3D;
   import alternativa.engine3d.core.Object3D;
   import alternativa.engine3d.core.Resource;
+  import alternativa.engine3d.core.events.MouseEvent3D;
+  import alternativa.engine3d.controllers.SimpleObjectController;
   import alternativa.engine3d.resources.BitmapTextureResource;
   import alternativa.engine3d.core.View;
   import alternativa.engine3d.core.Debug;
   import alternativa.engine3d.materials.*;
   import alternativa.engine3d.primitives.*;
   import alternativa.engine3d.lights.OmniLight;
+  import alternativa.engine3d.collisions.EllipsoidCollider
   import caurina.transitions.*;
  
   import flash.display.Sprite;
@@ -36,21 +39,14 @@
 
   private var _sphere:GeoSphere;
   private var _plane:Plane;
+  private var _hitEffect:Plane;
   private var _omniLight:OmniLight = new OmniLight(0xFF0000, 100,1000);
   private var _balls:Array = [];
 
-  private function init():void{
-  }
+  private var _collider:EllipsoidCollider = new EllipsoidCollider(10,10,10);
+  private var _controller:SimpleObjectController;  
 
-  private function keyHandler(event:KeyboardEvent):void {
-    switch(event.keyCode){
-      case 74: //j
-        _camera.rotationX += Math.PI / 16;
-        break;
-      case 75: //k
-        _camera.rotationX -= Math.PI / 16;
-        break;
-    }
+  private function init():void{
   }
 
   private var statsUI:UIComponent = new UIComponent;
@@ -62,16 +58,14 @@
 
   private function prepareView():void{
     showStatsForDebug();
-    stage.addEventListener(KeyboardEvent.KEY_DOWN, keyHandler); 
     _camera = new Camera3D(0.1, 10000);
     _camera.view = new View(760, 560);
     _camera.view.renderToBitmap = true;
     _camera.view.hideLogo();
     _camera.view.backgroundColor = 0xFFFFFF;
     _camera.view.backgroundAlpha = 0;
-    _camera.rotationX = Math.PI * 1.5;
-    _camera.y = -2000;
-    _camera.z = 100;
+    _camera.rotationX = Math.PI;
+    _camera.z = 2000;
     baseSprite.addChild(_camera.view);
     _rootContainer.addChild(_camera);
       
@@ -80,15 +74,26 @@
     var material:VertexLightTextureMaterial = new VertexLightTextureMaterial(texture);
 
     for(var i:int=0;i<100;i++){
-      var geoSphere:GeoSphere = new GeoSphere(30,10);
+      var geoSphere:GeoSphere = new GeoSphere(3,3);
       geoSphere.setMaterialToAllSurfaces(material);
       _rootContainer.addChild(geoSphere);
       var ball:Ball = new Ball(geoSphere);
       _balls.push(ball);
     }
 
+    _plane = new Plane(10,10,5,5,true);
+    _plane.z = 1900;
+    _plane.setMaterialToAllSurfaces(material);
+    _rootContainer.addChild(_plane);
+
+    _hitEffect = new Plane(500,500,5,5,true);
+    _hitEffect.z = 1990;
+    _hitEffect.setMaterialToAllSurfaces(material);
+    _hitEffect.visible = false;
+    _rootContainer.addChild(_hitEffect);
+
     _omniLight.intensity = 3;
-    _omniLight.z = 200;
+    _omniLight.z = 2000;
     _rootContainer.addChild(_omniLight);
 
     _stage3D = stage.stage3Ds[0];
@@ -101,17 +106,31 @@
       resource.upload(_stage3D.context3D);
     }
     stage.addEventListener(Event.ENTER_FRAME, onEnterFrame);
+    _controller = new SimpleObjectController(stage,_plane,100);
   }
 
   private function onEnterFrame(e:Event):void {
-    _camera.render(_stage3D);
     for each(var ball:Ball in _balls){
       if(ball.isOutOfSight()){
         ball.reset();
       } else {
         ball.update();
+        var hit:Boolean = _collider.getCollision(ball.position,ball.speed,new Vector3D(),new Vector3D(), _plane);
+        if(hit){
+          var timer:Timer = new Timer(100,1);
+          timer.addEventListener(TimerEvent.TIMER_COMPLETE,onTimerComplete);
+          _hitEffect.visible = true;
+          timer.start();
+        }
       }
     }
+    _controller.update();
+    _camera.render(_stage3D);
+  }
+
+  private function onTimerComplete(e:Event):void{
+    e.target.removeEventListener(TimerEvent.TIMER_COMPLETE,onTimerComplete);
+    _hitEffect.visible = false;
   }
 
   private function dispose():void{
